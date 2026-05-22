@@ -13,7 +13,7 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// Check if Firebase config is fully populated with actual non-placeholder values
+// Check if Firebase config is fully populated for Panchratna Constructions LLP
 const isConfigValid = 
   firebaseConfig.apiKey && 
   firebaseConfig.apiKey !== 'YOUR_FIREBASE_API_KEY' &&
@@ -31,9 +31,120 @@ if (isConfigValid) {
       getAnalytics(app);
     }
     isFirebaseConfigured = true;
-    console.log('✅ Firebase initialized successfully.');
+    console.log('✅ Panchratna Constructions: Firebase initialized.');
   } catch (error) {
-    console.error('❌ Error initializing Firebase client:', error);
+    console.error('❌ Error initializing Panchratna Firebase client:', error);
+  }
+} else {
+  console.warn(
+    '⚠️ Panchratna Environment variables missing. ' +
+    'Falling back to integrated LocalStorage engine for Panchratna Constructions LLP.'
+  );
+}
+
+// -------------------------------------------------------------
+// Sleek LocalStorage Mock Database Engine (Construction Edition)
+// Perfectly mirrors Firestore structure for Panchratna Site Visits.
+// -------------------------------------------------------------
+const mockDb = {
+  /* APPOINTMENT SECTION START (Safe to Remove/Edit) */
+  // Queries site visits matching a date
+  getAppointments: async (dateStr) => {
+    // Simulate network latency (200ms)
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const all = JSON.parse(localStorage.getItem('panchratna_site_visits') || '[]');
+    return all.filter((apt) => apt.appointment_date === dateStr);
+  },
+
+  // Queries site visits matching a phone number
+  getAppointmentsByPhone: async (phoneStr) => {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const all = JSON.parse(localStorage.getItem('panchratna_site_visits') || '[]');
+    const cleanSearch = phoneStr.replace(/[^0-9]/g, '');
+    if (!cleanSearch) return [];
+    return all.filter((apt) => {
+      const cleanAptPhone = apt.client_phone.replace(/[^0-9]/g, '');
+      return cleanAptPhone.includes(cleanSearch) || cleanSearch.includes(cleanAptPhone);
+    });
+  },
+
+  // Adds a site visit booking
+  addAppointment: async (appointment) => {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    const all = JSON.parse(localStorage.getItem('panchratna_site_visits') || '[]');
+    const newApt = {
+      id: 'panchratna_visit_' + Math.random().toString(36).substr(2, 9),
+      ...appointment,
+      created_at: new Date().toISOString()
+    };
+    all.push(newApt);
+    localStorage.setItem('panchratna_site_visits', JSON.stringify(all));
+    return newApt;
+  },
+  /* APPOINTMENT SECTION END */
+
+  // Adds a Corporate / Project Inquiry
+  addBulkOrder: async (order) => {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const all = JSON.parse(localStorage.getItem('project_inquiries') || '[]');
+    const newOrder = {
+      id: 'panchratna_inquiry_' + Math.random().toString(36).substr(2, 9),
+      ...order,
+      created_at: new Date().toISOString()
+    };
+    all.push(newOrder);
+    localStorage.setItem('project_inquiries', JSON.stringify(all));
+    return newOrder;
+  }
+};
+
+// Seed initial mock data for Panchratna Projects
+if (!localStorage.getItem('panchratna_visits_seeded')) {
+  const today = new Date();
+  const getFormattedDate = (offsetDays) => {
+    const d = new Date();
+    d.setDate(today.getDate() + offsetDays);
+    return d.toISOString().split('T')[0];
+  };
+
+  const initialAppointments = [
+    {
+      id: 'visit_1',
+      client_name: 'Rajesh Sharma',
+      client_phone: '9263002626',
+      appointment_date: getFormattedDate(0), // Today
+      time_slot: '10:30 AM',
+      project_interest: 'Panchratna Altius',
+      status: 'Confirmed',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'visit_2',
+      client_name: 'Anita Verma',
+      client_phone: '9835100000',
+      appointment_date: getFormattedDate(0), // Today
+      time_slot: '02:00 PM',
+      project_interest: 'Panchratna Heritage',
+      status: 'Pending',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'visit_3',
+      client_name: 'Infratech Corp',
+      client_phone: '0651-220000',
+      appointment_date: getFormattedDate(1), // Tomorrow
+      time_slot: '11:00 AM',
+      project_interest: 'Panchratna Armonia',
+      status: 'Confirmed',
+      created_at: new Date().toISOString()
+    }
+  ];
+
+  localStorage.setItem('panchratna_site_visits', JSON.stringify(initialAppointments));
+  localStorage.setItem('panchratna_visits_seeded', 'true');
+}
+
+export { db, isFirebaseConfigured, mockDb };
   }
 } else {
   console.warn(
