@@ -1,7 +1,7 @@
 from PIL import Image
 
 def process_uploaded_logo():
-    # Load the new uploaded logo
+    # Load the new uploaded logo from the specified path
     src_path = "C:/Users/Vikhyat Gupta/.gemini/antigravity/brain/e9aca8fe-d518-433b-b37a-b8449712ad8f/media__1779692327334.png"
     img = Image.open(src_path)
     
