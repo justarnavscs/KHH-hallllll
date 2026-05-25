@@ -53,17 +53,16 @@ export default function MyBookings({ onBackToHome }) {
     }
   };
 
-  // Cancel appointment — deletes from Firestore and marks CANCELLED in Google Sheets
+  // Cancel appointment — marks CANCELLED in UI + Firestore + Google Sheets
   const handleCancel = async (bookingId) => {
     setCancellingId(bookingId);
     setCancelError('');
-    // Find the booking data before deleting (needed for Sheets lookup)
     const booking = searchResults?.find((b) => b.id === bookingId);
     try {
       if (isFirebaseConfigured) {
         await deleteDoc(doc(db, 'clinic_appointments', bookingId));
       }
-      // Mark as CANCELLED in Google Sheets (fire-and-forget, non-blocking)
+      // Mark as CANCELLED in Google Sheets (fire-and-forget)
       if (booking) {
         fetch('/api/updateSheets', {
           method: 'POST',
@@ -78,8 +77,10 @@ export default function MyBookings({ onBackToHome }) {
           })
         }).catch((err) => console.warn('Sheets cancel sync failed:', err));
       }
-      // Remove from local search results state instantly
-      setSearchResults((prev) => prev ? prev.filter((b) => b.id !== bookingId) : prev);
+      // Keep card visible but flag it as cancelled — don't remove it
+      setSearchResults((prev) =>
+        prev ? prev.map((b) => b.id === bookingId ? { ...b, cancelled: true } : b) : prev
+      );
       setConfirmId(null);
     } catch (err) {
       console.error('Cancel failed:', err);
@@ -90,6 +91,7 @@ export default function MyBookings({ onBackToHome }) {
   };
 
   const renderBookingCard = (booking) => {
+    const isCancelled = booking.cancelled === true;
     const isCancelling = cancellingId === booking.id;
     const isAwaitingConfirm = confirmId === booking.id;
     const bookingId = booking.id;
@@ -97,21 +99,32 @@ export default function MyBookings({ onBackToHome }) {
     return (
       <div
         key={bookingId || `${booking.appointment_date}-${booking.time_slot}`}
-        className="bg-white border border-[#EAE5DC] rounded-2xl p-5 shadow-sm space-y-4 relative overflow-hidden transition-all duration-200 hover:shadow-md"
+        className={`bg-white border rounded-2xl p-5 shadow-sm space-y-4 relative overflow-hidden transition-all duration-200 hover:shadow-md ${
+          isCancelled ? 'border-slate-200 opacity-60' : 'border-[#EAE5DC]'
+        }`}
       >
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-cyan-500"></div>
+        {/* Top colour bar — grey if cancelled */}
+        <div className={`absolute top-0 left-0 right-0 h-1 ${
+          isCancelled ? 'bg-slate-300' : 'bg-gradient-to-r from-emerald-500 to-cyan-500'
+        }`}></div>
 
         <div className="flex items-center justify-between border-b border-[#EAE5DC]/60 pb-3">
-          <div className="flex items-center gap-2 text-emerald-700">
+          <div className={`flex items-center gap-2 ${isCancelled ? 'text-slate-400' : 'text-emerald-700'}`}>
             <Calendar className="w-4 h-4" />
             <span className="font-bold text-xs uppercase tracking-wider">Appointment Pass</span>
           </div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-emerald-50 border-emerald-200 text-emerald-700">
-            Booked
-          </span>
+          {isCancelled ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-slate-100 border-slate-300 text-slate-500">
+              ✕ Cancelled
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-emerald-50 border-emerald-200 text-emerald-700">
+              Booked
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 text-xs ${isCancelled ? 'opacity-50' : ''}`}>
           <div className="space-y-3">
             <div className="flex items-center gap-2.5 text-slate-600">
               <User className="w-4 h-4 text-slate-400 shrink-0" />
@@ -156,12 +169,14 @@ export default function MyBookings({ onBackToHome }) {
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[10px] text-slate-500 leading-relaxed font-medium">
+        <div className={`bg-slate-50 border border-slate-100 rounded-xl p-3 text-[10px] leading-relaxed font-medium ${
+          isCancelled ? 'text-slate-400 line-through' : 'text-slate-500'
+        }`}>
           💡 <strong>Official Proof:</strong> Present this slip card at the clinic counter near Mahabir Chowk, Ranchi, on your appointment day. No email login or printed copy is required.
         </div>
 
-        {/* Cancel Section */}
-        {bookingId && (
+        {/* Cancel Section — hidden if already cancelled */}
+        {bookingId && !isCancelled && (
           <div className="pt-1">
             {cancelError && confirmId === bookingId && (
               <p className="text-[10px] text-rose-600 font-semibold mb-2 flex items-center gap-1">
