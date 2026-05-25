@@ -1,0 +1,102 @@
+import { google } from 'googleapis';
+
+export default async function handler(req, res) {
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
+
+  try {
+    const { type, data } = req.body;
+
+    // We will extract these from the server environment securely
+    const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+    const sheetId = process.env.GOOGLE_SHEET_ID;
+
+    if (!clientEmail || !privateKey || !sheetId) {
+      console.warn("⚠️ Google Sheets credentials missing in environment. Skipping sheet update.");
+      return res.status(200).json({ status: 'mock_success', message: 'Credentials missing, but avoiding error on frontend' });
+    }
+
+    // Authenticate with Google
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: clientEmail,
+        private_key: privateKey,
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+    // Fetch spreadsheet metadata to check if the tabs exist
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: sheetId,
+    });
+    const sheetTitles = spreadsheet.data.sheets.map(s => s.properties.title);
+
+    let targetTab = '';
+    let headers = [];
+    let range = '';
+    let values = [];
+
+    if (type === 'appointment') {
+      targetTab = 'Appointments';
+      headers = ['Timestamp', 'Patient Name', 'Patient Phone', 'Appointment Date', 'Time Slot'];
+      range = `${targetTab}!A:E`;
+      values = [[timestamp, data.patient_name, data.patient_phone, data.appointment_date, data.time_slot]];
+    } else if (type === 'b2b_query') {
+      targetTab = 'B2B_Queries';
+      headers = ['Timestamp', 'Contact Name', 'Company Name', 'Email', 'Phone', 'Estimated Quantity', 'Requirements'];
+      range = `${targetTab}!A:G`;
+      values = [[timestamp, data.name, data.companyName, data.email, data.phone, data.quantity, data.requirements]];
+    } else {
+      return res.status(400).json({ message: 'Invalid payload type' });
+    }
+
+    // If tab doesn't exist, create it and write headers first
+    if (!sheetTitles.includes(targetTab)) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: targetTab,
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      // Write headers to the new tab
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: sheetId,
+        range: `${targetTab}!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [headers],
+        },
+      });
+    }
+
+    // Append data to sheet
+    const response = await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: range,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: values,
+      },
+    });
+
+    return res.status(200).json({ status: 'success', data: response.data });
+  } catch (error) {
+    console.error('❌ Error updating Google Sheets:', error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+}
