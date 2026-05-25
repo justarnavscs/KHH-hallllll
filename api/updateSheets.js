@@ -48,6 +48,12 @@ export default async function handler(req, res) {
       range = `${targetTab}!A:F`;
       values = [[timestamp, data.patient_name, data.patient_phone, data.appointment_date, data.time_slot, 'Booked']];
     } else if (type === 'cancel_appointment') {
+      // Normalize time slot — strip leading zero so "03:00 PM" matches "3:00 PM" in sheet
+      const normalizeSlot = (s) => (s || '').replace(/^0/, '').trim().toUpperCase();
+      const searchPhone = (data.patient_phone || '').trim();
+      const searchDate  = (data.appointment_date || '').trim();
+      const searchSlot  = normalizeSlot(data.time_slot);
+
       // Find the matching row and mark it CANCELLED
       targetTab = 'Appointments';
       const readRes = await sheets.spreadsheets.values.get({
@@ -55,29 +61,33 @@ export default async function handler(req, res) {
         range: `${targetTab}!A:F`,
       });
       const rows = readRes.data.values || [];
-      // Find row index matching phone + date + slot (columns C, D, E = index 2, 3, 4)
+      // Columns: A=Timestamp B=Name C=Phone D=Date E=Slot F=Status (0-indexed: 2,3,4,5)
       let matchRowIndex = -1;
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
+        const rowPhone = (row[2] || '').trim();
+        const rowDate  = (row[3] || '').trim();
+        const rowSlot  = normalizeSlot(row[4]);
+        const rowStatus = (row[5] || '').trim().toUpperCase();
         if (
-          row[2] === data.patient_phone &&
-          row[3] === data.appointment_date &&
-          row[4] === data.time_slot &&
-          row[5] !== 'CANCELLED'
+          rowPhone === searchPhone &&
+          rowDate  === searchDate  &&
+          rowSlot  === searchSlot  &&
+          rowStatus !== 'CANCELLED'
         ) {
-          matchRowIndex = i + 1; // Sheets is 1-indexed
+          matchRowIndex = i + 1; // Sheets rows are 1-indexed
           break;
         }
       }
       if (matchRowIndex === -1) {
-        // Row not found — not a hard error, just log and return ok
-        return res.status(200).json({ status: 'not_found', message: 'Row not found in sheet, already removed or never logged.' });
+        console.warn('Cancel: no matching row found in sheet for', { searchPhone, searchDate, searchSlot });
+        return res.status(200).json({ status: 'not_found', message: 'Row not found — may have already been cancelled or never logged.' });
       }
-      // Update the Status column (F) for that row
+      // Stamp CANCELLED in Status column (F)
       await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
         range: `${targetTab}!F${matchRowIndex}`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW',
         requestBody: { values: [['CANCELLED']] },
       });
       return res.status(200).json({ status: 'success', message: `Row ${matchRowIndex} marked CANCELLED.` });
@@ -122,7 +132,7 @@ export default async function handler(req, res) {
     const response = await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
       range: range,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       requestBody: {
         values: values,
       },
