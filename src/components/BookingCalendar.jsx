@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, Clock, User, Phone, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { db, isFirebaseConfigured, mockDb } from '../firebaseClient';
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, where, addDoc, onSnapshot } from 'firebase/firestore';
 
 export default function BookingCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -44,44 +44,47 @@ export default function BookingCalendar() {
 
   const selectedDateStr = useMemo(() => formatDateString(selectedDate), [selectedDate]);
 
-  // Fetch booked slots for the selected date
+  // Real-time listener for booked slots on the selected date
   useEffect(() => {
-    let active = true;
-    async function fetchBookings() {
+    if (isFirebaseConfigured) {
       setLoadingSlots(true);
-      try {
-        if (isFirebaseConfigured) {
-          const appointmentsRef = collection(db, 'clinic_appointments');
-          const q = query(
-            appointmentsRef,
-            where('appointment_date', '==', selectedDateStr)
-          );
-          const querySnapshot = await getDocs(q);
-          const booked = [];
-          querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.status === 'Pending' || data.status === 'Confirmed') {
-              booked.push(data.time_slot);
-            }
-          });
-          if (active) setBlockedSlots(booked);
-        } else {
-          const mockBookings = await mockDb.getAppointments(selectedDateStr);
-          const booked = mockBookings
-            .filter((apt) => apt.status === 'Pending' || apt.status === 'Confirmed')
-            .map((apt) => apt.time_slot);
-          if (active) setBlockedSlots(booked);
-        }
-      } catch (err) {
-        console.error('Error fetching bookings:', err);
-      } finally {
+      const appointmentsRef = collection(db, 'clinic_appointments');
+      const q = query(
+        appointmentsRef,
+        where('appointment_date', '==', selectedDateStr)
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const booked = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.status === 'Pending' || data.status === 'Confirmed') {
+            booked.push(data.time_slot);
+          }
+        });
+        setBlockedSlots(booked);
+        setLoadingSlots(false);
+      }, (err) => {
+        console.error('Error listening to bookings:', err);
+        setLoadingSlots(false);
+      });
+      return () => unsubscribe();
+    } else {
+      // Fallback: mock DB (dev only)
+      let active = true;
+      setLoadingSlots(true);
+      mockDb.getAppointments(selectedDateStr).then((mockBookings) => {
+        if (!active) return;
+        const booked = mockBookings
+          .filter((apt) => apt.status === 'Pending' || apt.status === 'Confirmed')
+          .map((apt) => apt.time_slot);
+        setBlockedSlots(booked);
+        setLoadingSlots(false);
+      }).catch((err) => {
+        console.error('Error fetching mock bookings:', err);
         if (active) setLoadingSlots(false);
-      }
+      });
+      return () => { active = false; };
     }
-    fetchBookings();
-    return () => {
-      active = false;
-    };
   }, [selectedDateStr]);
 
   // Calendar logic helpers
@@ -203,22 +206,7 @@ export default function BookingCalendar() {
         }
       }
 
-      // Feature A: Append new appointment payload to localStorage cache user_local_bookings
-      try {
-        const localCache = JSON.parse(localStorage.getItem('user_local_bookings') || '[]');
-        localCache.unshift({
-          id: 'local_apt_' + Math.random().toString(36).substring(2, 11),
-          patient_name: payload.patient_name,
-          patient_phone: payload.patient_phone,
-          appointment_date: payload.appointment_date,
-          time_slot: payload.time_slot,
-          status: 'Pending',
-          created_at: new Date().toISOString()
-        });
-        localStorage.setItem('user_local_bookings', JSON.stringify(localCache));
-      } catch (cacheErr) {
-        console.error('Failed to sync to local device cache:', cacheErr);
-      }
+      // Firestore is the single source of truth — no localStorage needed.
 
       setBookingDetails({
         patient_name: payload.patient_name,

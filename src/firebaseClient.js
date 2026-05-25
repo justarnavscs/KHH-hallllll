@@ -14,11 +14,15 @@ const firebaseConfig = {
 };
 
 // Check if Firebase config is fully populated with actual non-placeholder values
-const isConfigValid = 
-  firebaseConfig.apiKey && 
-  firebaseConfig.apiKey !== 'YOUR_FIREBASE_API_KEY' &&
+const isConfigValid = Boolean(
+  firebaseConfig.apiKey &&
   firebaseConfig.projectId &&
-  firebaseConfig.projectId !== 'YOUR_FIREBASE_PROJECT_ID';
+  firebaseConfig.authDomain &&
+  firebaseConfig.storageBucket &&
+  firebaseConfig.messagingSenderId &&
+  firebaseConfig.appId
+);
+// If any required key is missing, we'll still attempt to initialize but log a warning.
 
 let db = null;
 let isFirebaseConfigured = false;
@@ -34,13 +38,22 @@ if (isConfigValid) {
     console.log('✅ Firebase initialized successfully.');
   } catch (error) {
     console.error('❌ Error initializing Firebase client:', error);
+    isFirebaseConfigured = false;
   }
 } else {
-  console.warn(
-    '⚠️ Firebase environment variables are missing or use default placeholders. ' +
-    'The app will automatically fall back to an integrated localStorage database engine. ' +
-    'To hook up real Firebase Firestore, create a .env file with your credentials.'
-  );
+  console.warn('⚠️ Incomplete Firebase configuration detected. Forcing Firebase initialization with available keys.');
+  try {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    db = getFirestore(app);
+    if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
+      getAnalytics(app);
+    }
+    isFirebaseConfigured = true;
+    console.log('✅ Firebase initialized (forced) despite missing optional keys.');
+  } catch (error) {
+    console.error('❌ Failed forced Firebase init:', error);
+    isFirebaseConfigured = false;
+  }
 }
 
 // -------------------------------------------------------------
