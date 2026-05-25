@@ -232,7 +232,7 @@ export default function BookingCalendar() {
       if ('Notification' in window) {
         if (Notification.permission === 'granted') {
           try {
-            new Notification('Booking Requested! 📅', {
+            new Notification('Appointment Booked! 📅', {
               body: `Thank you ${payload.patient_name}, your slot for ${payload.appointment_date} at ${payload.time_slot} has been successfully received.`,
               icon: '/logo.png'
             });
@@ -243,7 +243,7 @@ export default function BookingCalendar() {
           Notification.requestPermission().then(permission => {
             if (permission === 'granted') {
               try {
-                new Notification('Booking Requested! 📅', {
+                new Notification('Appointment Booked! 📅', {
                   body: `Thank you ${payload.patient_name}, your slot for ${payload.appointment_date} at ${payload.time_slot} has been successfully received.`,
                   icon: '/logo.png'
                 });
@@ -394,8 +394,8 @@ export default function BookingCalendar() {
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-xl text-slate-800 tracking-tight">Booking Requested!</h3>
-                  <p className="text-2xs text-slate-500 mt-0.5">Your consultation request has been submitted successfully.</p>
+                  <h3 className="font-extrabold text-xl text-slate-800 tracking-tight">Appointment Booked!</h3>
+                  <p className="text-2xs text-slate-500 mt-0.5">Your appointment has been confirmed successfully.</p>
                 </div>
               </div>
 
@@ -432,13 +432,7 @@ export default function BookingCalendar() {
                     <span className="font-semibold text-slate-500">Selected Slot:</span>
                     <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-700 border border-cyan-100 font-extrabold">{bookingDetails.time_slot}</span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-[#EAE5DC]/60">
-                    <span className="font-semibold text-[#0F766E]">Status:</span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-wider border border-amber-200 bg-amber-50 text-amber-700 uppercase">
-                      <span className="w-1 h-1 rounded-full bg-amber-500 animate-ping"></span>
-                      Pending Review
-                    </span>
-                  </div>
+
                 </div>
               </div>
 

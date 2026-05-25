@@ -61,7 +61,6 @@ export default function MyBookings({ onBackToHome }) {
   };
 
   const renderBookingCard = (booking) => {
-    const isConfirmed = booking.status === 'Confirmed';
     
     return (
       <div 
@@ -75,13 +74,8 @@ export default function MyBookings({ onBackToHome }) {
             <Calendar className="w-4.5 h-4.5" />
             <span className="font-bold text-xs uppercase tracking-wider">Appointment Pass</span>
           </div>
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
-            isConfirmed 
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-              : 'bg-amber-50 border-amber-200 text-amber-700'
-          }`}>
-            {!isConfirmed && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>}
-            {booking.status || 'Pending'}
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider border bg-emerald-50 border-emerald-200 text-emerald-700">
+            Booked
           </span>
         </div>
 
