@@ -44,9 +44,43 @@ export default async function handler(req, res) {
 
     if (type === 'appointment') {
       targetTab = 'Appointments';
-      headers = ['Timestamp', 'Patient Name', 'Patient Phone', 'Appointment Date', 'Time Slot'];
-      range = `${targetTab}!A:E`;
-      values = [[timestamp, data.patient_name, data.patient_phone, data.appointment_date, data.time_slot]];
+      headers = ['Timestamp', 'Patient Name', 'Patient Phone', 'Appointment Date', 'Time Slot', 'Status'];
+      range = `${targetTab}!A:F`;
+      values = [[timestamp, data.patient_name, data.patient_phone, data.appointment_date, data.time_slot, 'Booked']];
+    } else if (type === 'cancel_appointment') {
+      // Find the matching row and mark it CANCELLED
+      targetTab = 'Appointments';
+      const readRes = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: `${targetTab}!A:F`,
+      });
+      const rows = readRes.data.values || [];
+      // Find row index matching phone + date + slot (columns C, D, E = index 2, 3, 4)
+      let matchRowIndex = -1;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (
+          row[2] === data.patient_phone &&
+          row[3] === data.appointment_date &&
+          row[4] === data.time_slot &&
+          row[5] !== 'CANCELLED'
+        ) {
+          matchRowIndex = i + 1; // Sheets is 1-indexed
+          break;
+        }
+      }
+      if (matchRowIndex === -1) {
+        // Row not found — not a hard error, just log and return ok
+        return res.status(200).json({ status: 'not_found', message: 'Row not found in sheet, already removed or never logged.' });
+      }
+      // Update the Status column (F) for that row
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `${targetTab}!F${matchRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [['CANCELLED']] },
+      });
+      return res.status(200).json({ status: 'success', message: `Row ${matchRowIndex} marked CANCELLED.` });
     } else if (type === 'b2b_query') {
       targetTab = 'B2B_Queries';
       headers = ['Timestamp', 'Contact Name', 'Company Name', 'Email', 'Phone', 'Estimated Quantity', 'Requirements'];

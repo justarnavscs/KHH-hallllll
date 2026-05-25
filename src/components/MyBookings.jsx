@@ -53,13 +53,30 @@ export default function MyBookings({ onBackToHome }) {
     }
   };
 
-  // Cancel appointment — deletes from Firestore so the slot opens up immediately
+  // Cancel appointment — deletes from Firestore and marks CANCELLED in Google Sheets
   const handleCancel = async (bookingId) => {
     setCancellingId(bookingId);
     setCancelError('');
+    // Find the booking data before deleting (needed for Sheets lookup)
+    const booking = searchResults?.find((b) => b.id === bookingId);
     try {
       if (isFirebaseConfigured) {
         await deleteDoc(doc(db, 'clinic_appointments', bookingId));
+      }
+      // Mark as CANCELLED in Google Sheets (fire-and-forget, non-blocking)
+      if (booking) {
+        fetch('/api/updateSheets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'cancel_appointment',
+            data: {
+              patient_phone: booking.patient_phone,
+              appointment_date: booking.appointment_date,
+              time_slot: booking.time_slot,
+            }
+          })
+        }).catch((err) => console.warn('Sheets cancel sync failed:', err));
       }
       // Remove from local search results state instantly
       setSearchResults((prev) => prev ? prev.filter((b) => b.id !== bookingId) : prev);
